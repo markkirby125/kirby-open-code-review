@@ -72,9 +72,14 @@ ocr delegate rule src/main.go src/handler.go
 
 OCR skips `unsupported_ext` (including Markdown). A Markdown-only tree can preview as “nothing to review.” Workspace **review** resume is unsupported; scan resume is.
 
+## Links
+
+- [Documentation](https://open-codereview.ai/docs)
+- [GitHub: alibaba/open-code-review](https://github.com/alibaba/open-code-review)
+- [Quickstart](https://open-codereview.ai/docs/quickstart)
+
 ## Tech Stack
 
 - **Format**: Markdown / YAML
 - **CLI**: `ocr` from [@alibaba-group/open-code-review](https://www.npmjs.com/package/@alibaba-group/open-code-review)
-- **Docs**: https://open-codereview.ai/docs
 - **Compatibility**: Antigravity, Claude Code, Cursor, Windsurf, Cline, Grok

@@ -11,7 +11,11 @@ Run Alibaba [open-code-review](https://github.com/alibaba/open-code-review) via 
 
 Upstream portable skills: `open-code-review` (OCR-managed LLM) and `open-code-review-delegate` (host agent reviews; OCR only selects files + rules). This Kirby skill picks the mode and Grok invocation.
 
-Git >= 2.41 required. Docs: https://open-codereview.ai/docs — run `ocr <cmd> --help` for live flags.
+Git >= 2.41 required. Run `ocr <cmd> --help` for live flags.
+
+- Docs: https://open-codereview.ai/docs
+- GitHub: https://github.com/alibaba/open-code-review
+- Quickstart: https://open-codereview.ai/docs/quickstart
 
 ## When to use vs `/review`
 
