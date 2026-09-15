@@ -38,7 +38,26 @@ named OCR?
 
 Stop on the first hard fail. Do **not** auto-install. Do **not** run `ocr config provider` or `ocr config model` (interactive TUI — user must run them in a real terminal). Never print `api_key` / `auth_token` / the rest of `config.json`. Inspect snippet: **references/cli.md** (Preflight inspect).
 
-Print a **Preflight** block on success (path, version, git, repo, provider, model, key SET/MISSING, llm test, mode).
+Print **Preflight OK** on success. Delegate must **not** run inspect or `ocr llm test` just to fill the block.
+
+Review/scan:
+```
+Preflight OK
+  ocr: /path/to/ocr  (v1.12.2)
+  git: 2.55.0  repo: /path/to/repo
+  provider: deepseek  model: deepseek-flash  key: SET
+  llm test: OK
+  mode: review
+```
+
+Delegate:
+```
+Preflight OK
+  ocr: /path/to/ocr  (v1.12.2)
+  git: 2.55.0  repo: /path/to/repo
+  provider/model/key/llm test: skipped
+  mode: delegate
+```
 
 ### A — binary, git, repo (all modes)
 
@@ -55,11 +74,14 @@ Print a **Preflight** block on success (path, version, git, repo, provider, mode
      ocr version
    ```
 
-2. `ocr version` must succeed. Parse `vX.Y.Z`. Need **≥ 1.10** (`--output`; also covers delegate `--format json` ≥ 1.9). Older → stop; ask before `npm i -g @alibaba-group/open-code-review@latest`.
+2. `ocr version` must succeed. Compare **numeric** major.minor (not string compare — `1.9` is older than `1.10`). Need **≥ 1.10** (`--output`; also covers delegate `--format json` ≥ 1.9). Older → stop; ask before `npm i -g @alibaba-group/open-code-review@latest`. Missing-binary fail (step 1) is not an install prompt for the agent.
 
-3. `git --version` ≥ **2.41**. Missing or older → stop with the version and “OCR requires Git >= 2.41”.
+3. `git --version` ≥ **2.41** (numeric major.minor). Missing or older — stop:
+   ```
+   OCR requires Git >= 2.41 (found: <version or missing>).
+   ```
 
-4. Git work tree: `git rev-parse --is-inside-work-tree` in cwd, or `--repo <path>`. Not a repo → stop.
+4. Resolve `REPO_ROOT`: `--repo <path>` if set, else cwd. Check `git -C "$REPO_ROOT" rev-parse --is-inside-work-tree`. Pass that same `--repo` to every later `ocr` call. Do not treat “cwd is a repo” as proof that `--repo` is.
 
 ### B — provider, model, key, llm test (review / scan only; skip for delegate)
 
@@ -73,7 +95,7 @@ Print a **Preflight** block on success (path, version, git, repo, provider, mode
      ocr config provider
    ```
 
-   **(b) provider set, model empty** (top-level `model`, else `providers.<provider>.model`) — stop:
+   **(b) provider set, model empty** (top-level `model`, else `providers.<provider>.model`, else `llm.model`) — stop:
    ```
    OCR provider is "<name>", but no model is selected.
 
@@ -81,7 +103,16 @@ Print a **Preflight** block on success (path, version, git, repo, provider, mode
      ocr config model
    ```
 
-6. Active provider key present? Boolean only (`SET` / `MISSING`). `MISSING` → stop: provider+model are set but no API key; user reruns `ocr config provider` or `ocr config set providers.<name>.api_key "$KEY"` in their terminal. Never invent a key.
+6. Active provider key present? Boolean only (`SET` / `MISSING`). `MISSING` — stop:
+   ```
+   OCR provider is configured but no API key is set.
+
+   In your own terminal:
+     ocr config provider
+   or:
+     ocr config set providers.<name>.api_key "$KEY"
+   ```
+   Never invent a key.
 
 7. `ocr llm test`. Fail → stop (key/network/quota). Offer delegate as an alternative. Do not retry blindly.
 
@@ -174,5 +205,6 @@ Review-only → report, do not edit. "Review and fix" → apply safe critical/hi
 | Dump `config.json` / print API keys | Inspect snippet only (provider, model, key SET/MISSING) |
 | `ocr config provider` / `model` from the agent | Stop; user runs those in a real terminal |
 | `npm install -g` without being asked | Print the install error and stop |
+| `ocr llm test` / inspect snippet in **delegate** | Skip; print `provider/model/key/llm test: skipped` |
 | Resume workspace **review** | Not supported (scan resume is) |
 | Truncate stdout | `--output` + full file read |

@@ -4,31 +4,57 @@ Canonical help: `ocr --help` and `ocr <command> --help`. Installed binary is typ
 
 ## Preflight inspect
 
-Print **only** `provider=`, `model=`, and `key=SET|MISSING`. Never print secrets. If the file is missing, all three come back empty/MISSING.
+Print **only** `provider=`, `model=`, and `key=SET|MISSING`. Never print secrets. Missing, unreadable, or malformed config → empty provider/model and `key=MISSING` (exit 0). Review/scan only — do not run this snippet in delegate mode.
 
 ```bash
 python3 - <<'PY'
 import json, os
-p = os.path.expanduser("~/.opencodereview/config.json")
 prov = model = ""
 key_set = False
-if os.path.isfile(p):
-    with open(p, encoding="utf-8") as f:
-        d = json.load(f)
-    prov = str(d.get("provider") or "")
-    active = (d.get("providers") or {}).get(prov) or {}
-    model = str(d.get("model") or active.get("model") or "")
-    token = (
-        active.get("api_key")
-        or active.get("auth_token")
-        or (d.get("llm") or {}).get("auth_token")
-        or ""
-    )
-    key_set = bool(str(token).strip())
+try:
+    p = os.path.expanduser("~/.opencodereview/config.json")
+    if os.path.isfile(p):
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+        if not isinstance(d, dict):
+            d = {}
+        prov = str(d.get("provider") or "")
+        active = (d.get("providers") or {}).get(prov) if isinstance(d.get("providers"), dict) else {}
+        if not isinstance(active, dict):
+            active = {}
+        llm = d.get("llm") if isinstance(d.get("llm"), dict) else {}
+        model = str(d.get("model") or active.get("model") or llm.get("model") or "")
+        token = (
+            active.get("api_key")
+            or active.get("auth_token")
+            or llm.get("auth_token")
+            or ""
+        )
+        key_set = bool(str(token).strip())
+except Exception:
+    prov = model = ""
+    key_set = False
 print(f"provider={prov}")
 print(f"model={model}")
 print("key=SET" if key_set else "key=MISSING")
 PY
+```
+
+Numeric version compare (OCR ≥ 1.10, Git ≥ 2.41). Not string compare (`1.9` is older than `1.10`).
+
+```bash
+ocr_ver=$(ocr version)
+git_ver=$(git --version)
+python3 -c 'import re,sys
+text, need = sys.argv[1], tuple(int(x) for x in sys.argv[2].split("."))
+m = re.search(r"(\d+)\.(\d+)", text)
+sys.exit(0 if m and (int(m.group(1)), int(m.group(2))) >= need[:2] else 1)
+' "$ocr_ver" 1.10
+python3 -c 'import re,sys
+text, need = sys.argv[1], tuple(int(x) for x in sys.argv[2].split("."))
+m = re.search(r"(\d+)\.(\d+)", text)
+sys.exit(0 if m and (int(m.group(1)), int(m.group(2))) >= need[:2] else 1)
+' "$git_ver" 2.41
 ```
 
 `ocr config get` does not exist. `ocr config provider` / `ocr config model` are interactive — never run them from an agent.
