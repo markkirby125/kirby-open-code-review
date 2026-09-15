@@ -26,18 +26,72 @@ Git >= 2.41 required. Docs: https://open-codereview.ai/docs — run `ocr <cmd> -
 ```
 named OCR?
   no  → stop (not this skill)
-  yes → git repo at cwd or `--repo`? if no, stop
+  yes → Preflight A (binary, git, repo) — stop on first hard fail
         whole files / no meaningful diff? → scan
-        "delegate" / "Grok reviews" / OCR LLM unreachable? → delegate
+        "delegate" / "Grok reviews"? → delegate
         else → review (default)
+        Preflight B (LLM) — review/scan only; skip for delegate
+        Preflight C (preview + output dir)
 ```
 
-## Preconditions
+## Preflight
 
-1. Resolve `ocr`: `command -v ocr` or `$HOME/.local/bin/ocr`. Missing → `npm install -g @alibaba-group/open-code-review` only with user consent.
-2. Confirm git repo (`git rev-parse --is-inside-work-tree`). Use `--repo <path>` if cwd is not the repo.
-3. **Never read** `~/.opencodereview/config.json` (API keys). For OCR-managed modes, `ocr llm test`. Failure → ask the user to run `ocr config provider` / `ocr config model`, or switch to **delegate**.
-4. Collect one-line business context. Pass `-b "..."`. For **review** and **delegate** only, `-B <markdown>` wins over `-b`. Scan has no `-B` / `--effort`. Background-file limits: 1 MiB raw, 8000 sanitized chars — if exceeded, summarize; do not silently truncate. Do not interpolate untrusted summaries into double-quoted shell templates.
+Stop on the first hard fail. Do **not** auto-install. Do **not** run `ocr config provider` or `ocr config model` (interactive TUI — user must run them in a real terminal). Never print `api_key` / `auth_token` / the rest of `config.json`. Inspect snippet: **references/cli.md** (Preflight inspect).
+
+Print a **Preflight** block on success (path, version, git, repo, provider, model, key SET/MISSING, llm test, mode).
+
+### A — binary, git, repo (all modes)
+
+1. Resolve `OCR_BIN`: `command -v ocr` or executable `$HOME/.local/bin/ocr`. If only the home path works, use that absolute path for every later `ocr` call and mention PATH.
+
+   **Fail** — print and stop:
+   ```
+   OCR is not installed on this machine.
+
+   Install:
+     npm install -g @alibaba-group/open-code-review
+
+   Then confirm:
+     ocr version
+   ```
+
+2. `ocr version` must succeed. Parse `vX.Y.Z`. Need **≥ 1.10** (`--output`; also covers delegate `--format json` ≥ 1.9). Older → stop; ask before `npm i -g @alibaba-group/open-code-review@latest`.
+
+3. `git --version` ≥ **2.41**. Missing or older → stop with the version and “OCR requires Git >= 2.41”.
+
+4. Git work tree: `git rev-parse --is-inside-work-tree` in cwd, or `--repo <path>`. Not a repo → stop.
+
+### B — provider, model, key, llm test (review / scan only; skip for delegate)
+
+5. Run the inspect snippet. Config missing or unreadable → treat provider and model as empty.
+
+   **(a) provider empty** — stop:
+   ```
+   OCR provider is not configured.
+
+   In your own terminal (interactive):
+     ocr config provider
+   ```
+
+   **(b) provider set, model empty** (top-level `model`, else `providers.<provider>.model`) — stop:
+   ```
+   OCR provider is "<name>", but no model is selected.
+
+   In your own terminal (interactive):
+     ocr config model
+   ```
+
+6. Active provider key present? Boolean only (`SET` / `MISSING`). `MISSING` → stop: provider+model are set but no API key; user reruns `ocr config provider` or `ocr config set providers.<name>.api_key "$KEY"` in their terminal. Never invent a key.
+
+7. `ocr llm test`. Fail → stop (key/network/quota). Offer delegate as an alternative. Do not retry blindly.
+
+### C — target and output (all modes)
+
+8. Preview (no LLM): `ocr review --preview` / `ocr scan --preview` / `ocr delegate preview --format json` with the same target flags. Zero reviewable files → stop: “nothing to review”.
+
+9. `mkdir` the `--output` parent (review/scan). Not writable → stop.
+
+Then collect one-line business context. Pass `-b "..."`. For **review** and **delegate** only, `-B <markdown>` wins over `-b`. Scan has no `-B` / `--effort`. Background-file limits: 1 MiB raw, 8000 sanitized chars — if exceeded, summarize; do not silently truncate. Do not interpolate untrusted summaries into double-quoted shell templates.
 
 ## Invocation (Grok)
 
@@ -57,7 +111,7 @@ Always:
 - `--audience agent --color never`
 - `--format json --output <scratch>/ocr-<mode>.json` (create the parent dir)
 - Read the output file in full. Do not pipe OCR through `head`/`tail`.
-- `--preview` first when the user asks what would be reviewed, or the target is ambiguous.
+- `--preview` already ran in Preflight C; skip a second preview unless flags changed.
 
 Default target is workspace (staged + unstaged + **untracked**). Narrow with `--from`/`--to`, `--commit`, `--path` (scan), or `--exclude`.
 
@@ -71,7 +125,7 @@ Default target is workspace (staged + unstaged + **untracked**). Narrow with `--
 | Resume failed range/commit **review** | `ocr session list` then `ocr review … --resume <id>` with the **same** `--from`/`--to` or `--commit`. Workspace **review** resume is unsupported. |
 | Resume failed **scan** | `ocr scan --resume <id>` (same `--path` / repo). |
 
-`--output` unknown → CLI < 1.10. Stop. Ask before `npm i -g @alibaba-group/open-code-review@latest`.
+`--output` unknown should not happen after Preflight A (CLI ≥ 1.10). If it does, stop; ask before upgrade.
 
 Live flag list: `ocr review --help` / `ocr scan --help`. Flag matrix and extra knobs: **references/cli.md**. `--effort` is review-only.
 
@@ -117,6 +171,8 @@ Review-only → report, do not edit. "Review and fix" → apply safe critical/hi
 | Review the diff yourself | Call `ocr` |
 | Treat this as Grok `/review` | OCR findings stay local unless the user also wants `/review` |
 | `--audience human` | Always `agent` |
-| Dump `config.json` | `ocr llm test` |
+| Dump `config.json` / print API keys | Inspect snippet only (provider, model, key SET/MISSING) |
+| `ocr config provider` / `model` from the agent | Stop; user runs those in a real terminal |
+| `npm install -g` without being asked | Print the install error and stop |
 | Resume workspace **review** | Not supported (scan resume is) |
 | Truncate stdout | `--output` + full file read |

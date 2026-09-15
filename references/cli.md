@@ -1,6 +1,39 @@
 # OCR CLI extras
 
-Canonical help: `ocr --help` and `ocr <command> --help`. Installed binary on this machine is typically `ocr` or `$HOME/.local/bin/ocr` (`@alibaba-group/open-code-review`).
+Canonical help: `ocr --help` and `ocr <command> --help`. Installed binary is typically `ocr` or `$HOME/.local/bin/ocr` (`@alibaba-group/open-code-review`).
+
+## Preflight inspect
+
+Print **only** `provider=`, `model=`, and `key=SET|MISSING`. Never print secrets. If the file is missing, all three come back empty/MISSING.
+
+```bash
+python3 - <<'PY'
+import json, os
+p = os.path.expanduser("~/.opencodereview/config.json")
+prov = model = ""
+key_set = False
+if os.path.isfile(p):
+    with open(p, encoding="utf-8") as f:
+        d = json.load(f)
+    prov = str(d.get("provider") or "")
+    active = (d.get("providers") or {}).get(prov) or {}
+    model = str(d.get("model") or active.get("model") or "")
+    token = (
+        active.get("api_key")
+        or active.get("auth_token")
+        or (d.get("llm") or {}).get("auth_token")
+        or ""
+    )
+    key_set = bool(str(token).strip())
+print(f"provider={prov}")
+print(f"model={model}")
+print("key=SET" if key_set else "key=MISSING")
+PY
+```
+
+`ocr config get` does not exist. `ocr config provider` / `ocr config model` are interactive — never run them from an agent.
+
+`ocr llm test` is the live connectivity check (review/scan only, after provider+model+key pass).
 
 ## Flag matrix (v1.12.x)
 
@@ -71,13 +104,15 @@ Resume: `ocr review --from … --to … --resume <id>` or `ocr review --commit �
 
 | Symptom | Action |
 |---|---|
-| `ocr: command not found` | Consent, then `npm install -g @alibaba-group/open-code-review` |
-| `unknown flag: --output` | CLI < 1.10. Ask before upgrade. Do not fall back to truncated stdout. |
+| `ocr: command not found` | Hard fail. Show `npm install -g @alibaba-group/open-code-review`. Do not auto-install. |
+| CLI `< 1.10` / `unknown flag: --output` | Ask before `npm i -g @alibaba-group/open-code-review@latest`. Do not fall back to truncated stdout. |
 | `unknown flag: --format` on delegate | CLI < 1.9. Rerun without `--format`; do not invent JSON fields. |
-| LLM connection error | `ocr llm test`. User runs `ocr config provider` / `ocr config model`. Never invent keys. Or switch to delegate. |
+| Provider / model empty | User runs `ocr config provider` then `ocr config model` in their terminal. |
+| `key=MISSING` | User reruns provider setup or `ocr config set providers.<name>.api_key "$KEY"`. Never invent keys. |
+| `ocr llm test` fails | Key/network/quota. Stop. Offer delegate. |
 | Rate limits | `--concurrency 2` or `--effort low` |
 | Interrupted range/commit **review** | `ocr review … --resume <id>` from `ocr session list` |
 | Interrupted **scan** | `ocr scan --resume <id>` |
 | Position `start_line`/`end_line` both 0 | Locate from comment text + file read |
 
-Do not open `~/.opencodereview/config.json` (secrets).
+Do not dump `~/.opencodereview/config.json`. Use the inspect snippet only.
