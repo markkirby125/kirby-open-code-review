@@ -17,7 +17,7 @@ Requires Git >= 2.41 and the `ocr` CLI (`npm install -g @alibaba-group/open-code
 
 This is a standard AI agent skill (compatible with Antigravity, Claude Code, Cursor, Windsurf, Grok).
 
-> ### The Magic Prompt
+> ### 🪄 The Magic Prompt
 > Copy and paste this directly to your AI (Cursor, Windsurf, Claude Code):
 >
 > ```markdown

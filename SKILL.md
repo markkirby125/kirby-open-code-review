@@ -26,7 +26,7 @@ Git >= 2.41 required. Docs: https://open-codereview.ai/docs — run `ocr <cmd> -
 ```
 named OCR?
   no  → stop (not this skill)
-  yes → cwd is a git repo? if no, stop
+  yes → git repo at cwd or `--repo`? if no, stop
         whole files / no meaningful diff? → scan
         "delegate" / "Grok reviews" / OCR LLM unreachable? → delegate
         else → review (default)
@@ -37,11 +37,20 @@ named OCR?
 1. Resolve `ocr`: `command -v ocr` or `$HOME/.local/bin/ocr`. Missing → `npm install -g @alibaba-group/open-code-review` only with user consent.
 2. Confirm git repo (`git rev-parse --is-inside-work-tree`). Use `--repo <path>` if cwd is not the repo.
 3. **Never read** `~/.opencodereview/config.json` (API keys). For OCR-managed modes, `ocr llm test`. Failure → ask the user to run `ocr config provider` / `ocr config model`, or switch to **delegate**.
-4. Collect one-line business context. Pass `-b "..."` or `-B <markdown>` (file wins). Background-file limits: 1 MiB raw, 8000 sanitized chars — if exceeded, summarize; do not silently truncate.
+4. Collect one-line business context. Pass `-b "..."`. For **review** and **delegate** only, `-B <markdown>` wins over `-b`. Scan has no `-B` / `--effort`. Background-file limits: 1 MiB raw, 8000 sanitized chars — if exceeded, summarize; do not silently truncate. Do not interpolate untrusted summaries into double-quoted shell templates.
 
 ## Invocation (Grok)
 
-OCR-managed `review` / `scan` can run tens of minutes. Launch as a **background** shell with a long `timeout` (default `--timeout 15` minutes × effort rounds: low 1 / medium 2 / high 3). Wait until the process **exits**. A 15s tool background is not completion.
+OCR-managed `review` / `scan` can run tens of minutes. **Two clocks, different units:**
+
+| Clock | Unit | Meaning |
+|---|---|---|
+| OCR `--timeout` | **minutes** per concurrent task (default 15) | Review wall ≈ that × effort rounds (low 1 / medium 2 / high 3). Scan has no `--effort`; wall ≈ `--timeout` minutes. |
+| Grok `run_terminal_command` `timeout` | **milliseconds** | Wrapper kill deadline. Default 120000 if you set `background: true`. |
+
+Launch **without** `background: true` so the tool auto-backgrounds after ~15s and keeps running (10h cap). Wait until the process **exits**. A 15s auto-background is not completion.
+
+If you must pass `background: true`, set Grok `timeout` to `0` (run until exit) **or** ≥ rounds × OCR `--timeout` × 60 × 1000 ms (medium default → `1800000`). Never pass OCR's minute value (e.g. `15` or `30`) as Grok `timeout`.
 
 Always:
 
@@ -57,13 +66,14 @@ Default target is workspace (staged + unstaged + **untracked**). Narrow with `--
 | Working copy | `ocr review --audience agent --color never --format json --output <file> -b "<ctx>"` |
 | Branch vs base | same + `--from main --to <branch>` (merge-base) |
 | One commit | same + `--commit <sha>` |
-| Full-file audit | `ocr scan ... [--path dir,file]` |
+| Full-file audit | `ocr scan --audience agent --color never --format json --output <file> -b "<ctx>" [--path dir,file]` (no `-B`, no `--effort`) |
 | Dry run | add `--preview` (no LLM) |
-| Resume failed range/commit | `ocr session list` then `--resume <id>` with the **same** target. Workspace resume is unsupported. |
+| Resume failed range/commit **review** | `ocr session list` then `ocr review … --resume <id>` with the **same** `--from`/`--to` or `--commit`. Workspace **review** resume is unsupported. |
+| Resume failed **scan** | `ocr scan --resume <id>` (same `--path` / repo). |
 
 `--output` unknown → CLI < 1.10. Stop. Ask before `npm i -g @alibaba-group/open-code-review@latest`.
 
-Live flag list: `ocr review --help` / `ocr scan --help`. Extra knobs (`--effort`, `--exclude`, `--provider`, `--model`, budgets): **references/cli.md**.
+Live flag list: `ocr review --help` / `ocr scan --help`. Flag matrix and extra knobs: **references/cli.md**. `--effort` is review-only.
 
 ## Delegate mode
 
@@ -85,7 +95,7 @@ Drop **low** unless clearly valuable. Group critical → high → medium:
 ## Code Review Results (OCR)
 
 **Mode**: review | scan | delegate
-**Files**: N  **Issues**: X critical, Y high, Z medium
+**Files**: N reviewed / T total (skipped S: reasons)  **Issues**: X critical, Y high, Z medium
 
 ### Critical
 - **`path:line`** [category] — finding
@@ -108,5 +118,5 @@ Review-only → report, do not edit. "Review and fix" → apply safe critical/hi
 | Treat this as Grok `/review` | OCR findings stay local unless the user also wants `/review` |
 | `--audience human` | Always `agent` |
 | Dump `config.json` | `ocr llm test` |
-| Resume workspace | Not supported |
+| Resume workspace **review** | Not supported (scan resume is) |
 | Truncate stdout | `--output` + full file read |
