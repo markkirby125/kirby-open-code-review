@@ -37,6 +37,41 @@ This is a standard AI agent skill (compatible with Antigravity, Claude Code, Cur
 
 Trigger with `/kirby-open-code-review`, `ocr review`, `ocr scan`, or `ocr delegate`.
 
+### Run `ocr` yourself
+
+`cd` into a git repo (or pass `--repo`). First-time LLM setup is interactive: `ocr config provider` then `ocr config model`. Confirm with `ocr version` and `ocr llm test`. Flags: `ocr <cmd> --help` or the [CLI reference](https://open-codereview.ai/docs/cli-reference).
+
+When an **agent** runs OCR, it always adds `--audience agent --color never --format json --output <file>` (and preflight). The commands below are the human forms.
+
+```bash
+# Workspace — staged + unstaged + untracked
+ocr review
+
+# Branch range (merge-base of --from and --to)
+ocr review --from main --to feature-branch
+
+# Single commit vs its parent
+ocr review --commit abc123
+
+# Resume an interrupted range or commit review (not workspace review)
+ocr session list
+ocr review --from main --to feature-branch --resume <session-id>
+
+# Whole files (no meaningful diff needed)
+ocr scan
+ocr scan --path internal/agent
+ocr scan --resume <session-id>
+
+# JSON for tools
+ocr review --format json --output result.json
+
+# Delegate — OCR picks files and rules; your agent reviews (no OCR LLM key)
+ocr delegate preview
+ocr delegate rule src/main.go src/handler.go
+```
+
+OCR skips `unsupported_ext` (including Markdown). A Markdown-only tree can preview as “nothing to review.” Workspace **review** resume is unsupported; scan resume is.
+
 ## Tech Stack
 
 - **Format**: Markdown / YAML
