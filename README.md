@@ -6,6 +6,8 @@ SOP for running Alibaba [Open Code Review](https://github.com/alibaba/open-code-
 
 OCR is a hybrid reviewer: deterministic file selection, bundling, and rule matching, plus an LLM agent that emits line-level comments. This skill tells the host agent to invoke the installed `ocr` CLI instead of hand-rolling a substitute review.
 
+**October 2026 addition:** the Pocock Desk 2 Mode — a ticket-branch review contract (`--from <base> --to ticket/<id>`) that serves as the automated Standards-Review instrument for `kirby-pocock-workflow` Module 5, with verdict mapping into its two-desk fail loop.
+
 **Modes:**
 - **Review** — git diffs (workspace, branch range, or a single commit)
 - **Scan** — whole files, no meaningful diff required
