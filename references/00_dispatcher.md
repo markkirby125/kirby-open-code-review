@@ -167,6 +167,16 @@ OCR does **not** call an LLM. Host agent reviews every previewed file.
 4. Cover every `reviewable_files` entry (reviewed or skipped with reason). Same path can appear twice in workspace mode (staged delete + untracked recreate).
 5. If `--format json` is unknown, rerun without it (CLI < 1.9). Do not invent JSON fields.
 
+## Pocock Desk 2 Mode (kirby-pocock-workflow Module 5)
+
+Invoked by `../../kirby-pocock-workflow/SKILL.md` Module 5 §5.3 as the automated instrument for **Standards Review**. All preflight, invocation, and report rules above apply unchanged. Mode-specific contract:
+
+- **Target:** the ticket branch vs its base — `ocr review --from <base> --to ticket/<id> ...` (never workspace mode; the ticket's diff is the desk's entire universe).
+- **Business context (`-B`):** the ticket's context manifest + acceptance criteria (markdown file). Desk 2 is standards-blind to spec intent — do not add spec text beyond the manifest.
+- **Verdict mapping:** any critical/high/medium finding = Desk 2 **FAIL** with the findings list; zero findings after the standard low-severity drop = Desk 2 **PASS**. Report format above, plus the verdict line.
+- **Fail loop:** findings append to the ticket's context manifest verbatim (pocock M5 §5.4 sends the ticket to a fresh clean head with them). Do not fix code from this skill in Desk 2 mode — review-only, report, do not edit.
+- **Escalation:** two consecutive FAILs on the same finding category route to pocock M7 retro (linter/hook conversion), not a third review round.
+
 ## Report
 
 JSON comments: `path`, `content`, `start_line`/`end_line` (both `0` = position failed — locate from content), `category` (bug/security/performance/maintainability/test/style/documentation/other), `severity` (critical/high/medium/low), optional `suggestion_code` / `existing_code`.
