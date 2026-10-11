@@ -4,7 +4,7 @@ description: "Use when the user asks for Kirby Open Code Review, /kirby-open-cod
 category: technique
 triggers: [kirby-open-code-review, ocr, open-code-review, opencodereview, ocr-review, ocr-scan, ocr-delegate]
 risk: unverified
-author: william-fitzpatrick
+author: paul-kirby
 tags: [kirby, ai-agent, workflow]
 ---
 
